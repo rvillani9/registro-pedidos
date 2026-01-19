@@ -10,6 +10,7 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
+import com.google.api.services.calendar.CalendarScopes;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
 import com.google.api.services.gmail.model.*;
@@ -27,10 +28,12 @@ public class GmailService {
     private static final String APPLICATION_NAME = "Ingreso Pedidos";
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
     private static final String TOKENS_DIRECTORY_PATH = "tokens";
+    // Incluir TODOS los scopes necesarios (Gmail + Calendar)
     private static final List<String> SCOPES = Arrays.asList(
             GmailScopes.GMAIL_READONLY,
             GmailScopes.GMAIL_SEND,
-            GmailScopes.GMAIL_MODIFY
+            GmailScopes.GMAIL_MODIFY,
+            CalendarScopes.CALENDAR
     );
     private static final String CREDENTIALS_FILE_PATH = "credentials.json";
 

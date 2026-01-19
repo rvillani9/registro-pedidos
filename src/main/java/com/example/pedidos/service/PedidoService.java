@@ -57,58 +57,70 @@ public class PedidoService {
     }
 
     @Transactional
-    public void agregarACalendario(Long pedidoId) throws Exception {
+    public void agregarACalendario(Long pedidoId) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
-        String horario = pedido.getHorarioEntrega() != null ?
-            pedido.getHorarioEntrega().toString() : "A confirmar";
+        try {
+            String horario = pedido.getHorarioEntrega() != null ?
+                pedido.getHorarioEntrega().toString() : "A confirmar";
 
-        String detalles = String.format(
-                "Pedido: %s\n" +
-                "Cliente Facturación: %s\n" +
-                "Destinatario Entrega: %s\n" +
-                "Dirección: %s\n" +
-                "Horario: %s\n" +
-                "Total: $%.2f\n\n" +
-                "Recordar:\n" +
-                "- Solicitar turno a BlancaLuna\n" +
-                "- Preparar Remito\n" +
-                "- Preparar Etiqueta RNPA",
-                pedido.getNumeroPedido(),
-                pedido.getClienteFacturacion() != null ? pedido.getClienteFacturacion() : "N/A",
-                pedido.getDestinatarioEntrega() != null ? pedido.getDestinatarioEntrega() : "N/A",
-                pedido.getDireccionEntrega() != null ? pedido.getDireccionEntrega() : pedido.getLugarEntrega(),
-                horario,
-                pedido.getTotal()
-        );
+            String detalles = String.format(
+                    "Pedido: %s\n" +
+                    "Cliente Facturación: %s\n" +
+                    "Destinatario Entrega: %s\n" +
+                    "Dirección: %s\n" +
+                    "Horario: %s\n" +
+                    "Total: $%.2f\n\n" +
+                    "Recordar:\n" +
+                    "- Solicitar turno a BlancaLuna\n" +
+                    "- Preparar Remito\n" +
+                    "- Preparar Etiqueta RNPA",
+                    pedido.getNumeroPedido(),
+                    pedido.getClienteFacturacion() != null ? pedido.getClienteFacturacion() : "N/A",
+                    pedido.getDestinatarioEntrega() != null ? pedido.getDestinatarioEntrega() : "N/A",
+                    pedido.getDireccionEntrega() != null ? pedido.getDireccionEntrega() : pedido.getLugarEntrega(),
+                    horario,
+                    pedido.getTotal()
+            );
 
-        String eventId = calendarService.crearEventoEntrega(
-                pedido.getNumeroPedido(),
-                pedido.getFechaEntrega(),
-                pedido.getDireccionEntrega() != null ? pedido.getDireccionEntrega() : pedido.getLugarEntrega(),
-                detalles
-        );
+            String eventId = calendarService.crearEventoEntrega(
+                    pedido.getNumeroPedido(),
+                    pedido.getFechaEntrega(),
+                    pedido.getDireccionEntrega() != null ? pedido.getDireccionEntrega() : pedido.getLugarEntrega(),
+                    detalles
+            );
 
-        pedido.setGoogleCalendarEventId(eventId);
-        pedido.setEstado(EstadoPedido.CALENDARIO_CREADO);
-        pedidoRepository.save(pedido);
+            pedido.setGoogleCalendarEventId(eventId);
+            pedido.setEstado(EstadoPedido.CALENDARIO_CREADO);
+            pedidoRepository.save(pedido);
 
-        log.info("Pedido agregado al calendario: {}", pedido.getNumeroPedido());
+            log.info("Pedido agregado al calendario: {}", pedido.getNumeroPedido());
+        } catch (Exception e) {
+            log.warn("No se pudo agregar al calendario (el pedido continúa procesándose): {}", e.getMessage());
+            // No lanzar excepción - permitir que el proceso continúe
+            pedido.setEstado(EstadoPedido.RECIBIDO); // Mantener estado sin calendario
+            pedidoRepository.save(pedido);
+        }
     }
 
     @Transactional
-    public void enviarAPlanta(Long pedidoId) throws Exception {
+    public void enviarAPlanta(Long pedidoId) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
-        emailNotificationService.enviarNotificacionPlanta(pedido);
+        try {
+            emailNotificationService.enviarNotificacionPlanta(pedido);
 
-        pedido.setFechaEnvioPlanta(LocalDateTime.now());
-        pedido.setEstado(EstadoPedido.ENVIADO_PLANTA);
-        pedidoRepository.save(pedido);
+            pedido.setFechaEnvioPlanta(LocalDateTime.now());
+            pedido.setEstado(EstadoPedido.ENVIADO_PLANTA);
+            pedidoRepository.save(pedido);
 
-        log.info("Pedido enviado a planta: {}", pedido.getNumeroPedido());
+            log.info("Pedido enviado a planta: {}", pedido.getNumeroPedido());
+        } catch (Exception e) {
+            log.warn("No se pudo enviar email a planta (el pedido se guardó correctamente): {}", e.getMessage());
+            // No lanzar excepción - el pedido ya está guardado
+        }
     }
 
     @Transactional

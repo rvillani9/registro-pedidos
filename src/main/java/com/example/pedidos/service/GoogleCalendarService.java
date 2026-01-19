@@ -16,6 +16,7 @@ import com.google.api.services.calendar.CalendarScopes;
 import com.google.api.services.calendar.model.Event;
 import com.google.api.services.calendar.model.EventDateTime;
 import com.google.api.services.calendar.model.EventReminder;
+import com.google.api.services.gmail.GmailScopes;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +33,13 @@ public class GoogleCalendarService {
     private static final String APPLICATION_NAME = "Ingreso Pedidos Calendar";
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
     private static final String TOKENS_DIRECTORY_PATH = "tokens";
-    private static final List<String> SCOPES = Arrays.asList(CalendarScopes.CALENDAR);
+    // Incluir TODOS los scopes necesarios (Gmail + Calendar)
+    private static final List<String> SCOPES = Arrays.asList(
+            CalendarScopes.CALENDAR,
+            GmailScopes.GMAIL_READONLY,
+            GmailScopes.GMAIL_SEND,
+            GmailScopes.GMAIL_MODIFY
+    );
     private static final String CREDENTIALS_FILE_PATH = "credentials.json";
 
     private Calendar calendarService;

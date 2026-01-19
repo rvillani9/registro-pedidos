@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendario de Entregas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-clipboard-list"></i> Sistema de Pedidos
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Inicio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/pedidos">Pedidos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/calendario">Calendario</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/reportes">Reportes</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logout">Salir</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2><i class="fas fa-calendar-alt"></i> Calendario de Entregas</h2>
+        <p class="text-muted">Los eventos también están sincronizados con Google Calendar</p>
+
+        <div class="card mt-4">
+            <div class="card-body">
+                <div id="calendar"></div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-clock"></i> Próximas Entregas</h5>
+            </div>
+            <div class="card-body">
+                <div id="proximasEntregas">
+                    <!-- Se carga dinámicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
+
+    <script>
+        let calendar;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                locale: 'es',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,listWeek'
+                },
+                events: function(info, successCallback, failureCallback) {
+                    $.get('/api/pedidos', function(pedidos) {
+                        const eventos = pedidos.map(pedido => ({
+                            id: pedido.id,
+                            title: `${pedido.numeroPedido} - ${pedido.lugarEntrega || 'Sin ubicación'}`,
+                            start: pedido.fechaEntrega,
+                            backgroundColor: getColorByEstado(pedido.estado),
+                            extendedProps: {
+                                pedido: pedido
+                            }
+                        }));
+                        successCallback(eventos);
+                    });
+                },
+                eventClick: function(info) {
+                    mostrarDetallePedido(info.event.extendedProps.pedido);
+                }
+            });
+
+            calendar.render();
+            cargarProximasEntregas();
+        });
+
+        function getColorByEstado(estado) {
+            const colores = {
+                'RECIBIDO': '#007bff',
+                'CALENDARIO_CREADO': '#17a2b8',
+                'ENVIADO_PLANTA': '#ffc107',
+                'EN_FABRICACION': '#6c757d',
+                'PREPARADO_ENTREGA': '#28a745',
+                'ENTREGADO': '#28a745',
+                'COBRADO': '#28a745',
+                'FINALIZADO': '#343a40'
+            };
+            return colores[estado] || '#6c757d';
+        }
+
+        function mostrarDetallePedido(pedido) {
+            alert(`Pedido: ${pedido.numeroPedido}\nEstado: ${pedido.estado}\nTotal: $${pedido.total}`);
+        }
+
+        function cargarProximasEntregas() {
+            $.get('/api/pedidos', function(pedidos) {
+                const hoy = new Date();
+                const proximasSemana = pedidos.filter(p => {
+                    const fechaEntrega = new Date(p.fechaEntrega);
+                    const diff = (fechaEntrega - hoy) / (1000 * 60 * 60 * 24);
+                    return diff >= 0 && diff <= 7;
+                }).sort((a, b) => new Date(a.fechaEntrega) - new Date(b.fechaEntrega));
+
+                const html = proximasSemana.map(p => `
+                    <div class="alert alert-info">
+                        <strong>${p.numeroPedido}</strong> -
+                        ${new Date(p.fechaEntrega).toLocaleDateString('es-AR')} -
+                        ${p.lugarEntrega || 'Sin ubicación'} -
+                        <span class="badge bg-primary">${p.estado}</span>
+                    </div>
+                `).join('');
+
+                $('#proximasEntregas').html(html || '<p class="text-muted">No hay entregas próximas</p>');
+            });
+        }
+    </script>
+</body>
+</html>
+

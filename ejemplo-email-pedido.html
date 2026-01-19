@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Ejemplo de Email de Pedido</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-left: 4px solid #007bff;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .total {
+            text-align: right;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .instrucciones {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nuevo Pedido - Cliente ABC S.A.</h1>
+
+        <div class="info">
+            <p><strong>Fecha de Entrega:</strong> 25/01/2026</p>
+            <p><strong>Lugar de Entrega:</strong> Av. Corrientes 1234, CABA, Buenos Aires</p>
+            <p><strong>Cliente:</strong> ABC S.A.</p>
+            <p><strong>Contacto:</strong> Juan Pérez - Tel: 11-5555-1234</p>
+        </div>
+
+        <h2>Detalle del Pedido</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Precio Unitario</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Producto A - Premium</td>
+                    <td>50</td>
+                    <td>$150.00</td>
+                    <td>$7,500.00</td>
+                </tr>
+                <tr>
+                    <td>Producto B - Estándar</td>
+                    <td>100</td>
+                    <td>$85.50</td>
+                    <td>$8,550.00</td>
+                </tr>
+                <tr>
+                    <td>Producto C - Básico</td>
+                    <td>200</td>
+                    <td>$45.00</td>
+                    <td>$9,000.00</td>
+                </tr>
+                <tr>
+                    <td>Producto D - Especial</td>
+                    <td>25</td>
+                    <td>$320.00</td>
+                    <td>$8,000.00</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="total">
+            TOTAL: $33,050.00
+        </div>
+
+        <div class="info">
+            <h3>Notas Adicionales:</h3>
+            <ul>
+                <li>Confirmar disponibilidad de stock antes de fabricar</li>
+                <li>Solicitar turno a BlancaLuna con anticipación</li>
+                <li>Preparar documentación: Remito y Etiqueta RNPA</li>
+                <li>Verificar dirección de entrega antes del envío</li>
+            </ul>
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <div class="instrucciones">
+            <h3>📧 Instrucciones para Enviar este Email de Prueba</h3>
+
+            <p><strong>1. Copia el HTML de este archivo</strong></p>
+            <ul>
+                <li>Abre este archivo en un editor de texto</li>
+                <li>Copia todo el contenido desde <span class="code">&lt;!DOCTYPE html&gt;</span> hasta <span class="code">&lt;/html&gt;</span></li>
+            </ul>
+
+            <p><strong>2. Envía el email desde Gmail</strong></p>
+            <ul>
+                <li>Ve a Gmail y crea un nuevo mensaje</li>
+                <li>En el destinatario, pon tu propio email (el que configuraste en la app)</li>
+                <li>Asunto: <span class="code">Nuevo Pedido - Cliente ABC</span> (debe contener "pedido")</li>
+                <li>Haz clic en los tres puntos (...) > "Editar en HTML"</li>
+                <li>Pega el código HTML copiado</li>
+                <li>Envía el email</li>
+            </ul>
+
+            <p><strong>3. Espera el procesamiento</strong></p>
+            <ul>
+                <li>El sistema procesa emails cada 10 minutos</li>
+                <li>O reinicia la aplicación para forzar el procesamiento inmediato</li>
+                <li>Ve a la aplicación web y verifica que el pedido fue creado</li>
+            </ul>
+
+            <p><strong>4. Verifica los resultados</strong></p>
+            <ul>
+                <li>En la aplicación web: http://localhost:8080/pedidos</li>
+                <li>En Google Calendar: Debe aparecer un evento para el 25/01/2026</li>
+                <li>En tu email: Deberías recibir la notificación enviada a la "planta"</li>
+            </ul>
+        </div>
+
+        <div class="instrucciones" style="background: #d1ecf1; border-color: #bee5eb; margin-top: 20px;">
+            <h3>🔧 Formatos Alternativos Soportados</h3>
+
+            <p><strong>Fecha de entrega:</strong></p>
+            <ul>
+                <li><span class="code">Fecha de Entrega: 25/01/2026</span></li>
+                <li><span class="code">Fecha de entrega: 25-01-2026</span></li>
+                <li><span class="code">Entrega: 25/01/2026</span></li>
+            </ul>
+
+            <p><strong>Lugar de entrega:</strong></p>
+            <ul>
+                <li><span class="code">Lugar de Entrega: Dirección</span></li>
+                <li><span class="code">Entregar en: Dirección</span></li>
+                <li><span class="code">Dirección: Dirección completa</span></li>
+            </ul>
+
+            <p><strong>Tabla de productos:</strong></p>
+            <ul>
+                <li>Mínimo 3 columnas: Producto, Cantidad, Precio</li>
+                <li>Puede tener más columnas (se ignorarán)</li>
+                <li>Los precios pueden tener $ o no</li>
+                <li>Las cantidades deben ser números enteros</li>
+            </ul>
+        </div>
+
+        <div class="info" style="background: #d4edda; border-color: #c3e6cb; margin-top: 20px;">
+            <h3>✅ Checklist de Validación</h3>
+            <ul>
+                <li>☐ El asunto contiene la palabra "pedido"</li>
+                <li>☐ Hay una línea con "Fecha de Entrega: DD/MM/YYYY"</li>
+                <li>☐ Hay una línea con "Lugar de Entrega: Dirección"</li>
+                <li>☐ Hay una tabla HTML con productos</li>
+                <li>☐ La tabla tiene al menos: Producto, Cantidad, Precio</li>
+                <li>☐ Los precios son números válidos</li>
+                <li>☐ Las cantidades son números enteros</li>
+            </ul>
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <p style="text-align: center; color: #666; font-size: 0.9em;">
+            <strong>Sistema de Gestión de Pedidos</strong><br>
+            Este es un ejemplo de email que será procesado automáticamente por el sistema
+        </p>
+    </div>
+</body>
+</html>
+

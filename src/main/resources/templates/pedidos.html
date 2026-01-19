@@ -153,13 +153,23 @@
         let tablaPedidos;
 
         $(document).ready(function() {
+            console.log('✅ Página de pedidos cargada, iniciando carga...');
             cargarPedidos();
         });
 
         function cargarPedidos() {
-            $.get('/api/pedidos', function(data) {
-                mostrarPedidos(data);
-            });
+            console.log('🔄 Solicitando pedidos a /api/pedidos...');
+            $.get('/api/pedidos')
+                .done(function(data) {
+                    console.log('✅ Pedidos recibidos:', data.length, 'pedidos');
+                    console.log('Datos:', data);
+                    mostrarPedidos(data);
+                })
+                .fail(function(jqXHR, textStatus, errorThrown) {
+                    console.error('❌ Error al cargar pedidos:', textStatus, errorThrown);
+                    console.error('Respuesta:', jqXHR.responseText);
+                    alert('Error al cargar pedidos. Ver consola (F12) para más detalles.');
+                });
         }
 
         function mostrarPedidos(pedidos) {

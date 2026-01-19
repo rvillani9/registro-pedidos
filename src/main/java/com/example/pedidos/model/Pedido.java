@@ -1,5 +1,6 @@
 package com.example.pedidos.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -57,6 +58,7 @@ public class Pedido {
     private EstadoPedido estado;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private List<ItemPedido> items = new ArrayList<>();
 
     @Column(name = "total", precision = 10, scale = 2)

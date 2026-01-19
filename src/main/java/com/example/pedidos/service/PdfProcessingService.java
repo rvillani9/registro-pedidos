@@ -33,27 +33,21 @@ public class PdfProcessingService {
 
     /**
      * Extrae items de pedido del texto del PDF
-     * Busca patrones comunes en tablas de productos
+     * Formato Aramark: SKU Descripción Precio Cant. Total
+     * Ejemplo: PN001643 PLANCHA DE PASTA FROLA DE MEMBRILLO 30 X 40 18.500,00 16,00 296.000,00
      */
     public List<ItemPedidoDTO> extraerItemsDelPdf(String textoPdf) {
         List<ItemPedidoDTO> items = new ArrayList<>();
 
+        log.info("=== INICIANDO EXTRACCIÓN DE ITEMS DEL PDF ===");
+
         // Dividir el texto en líneas
         String[] lineas = textoPdf.split("\n");
 
-        // Patrones para detectar líneas de productos
-        // Formato esperado: Producto | Cantidad | Precio Unitario | Total
-        // Ejemplos:
-        // "Producto A    50    150.00    7500.00"
-        // "Producto B | 100 | $85.50 | $8,550.00"
-
-        Pattern patronProducto = Pattern.compile(
-            "^(.+?)\\s+([0-9]+)\\s+\\$?([0-9,.]+)\\s+\\$?([0-9,.]+)$"
-        );
-
-        // Patrón alternativo con separadores (pipes, tabs, etc)
-        Pattern patronProductoAlt = Pattern.compile(
-            "^(.+?)[|\\t]+\\s*([0-9]+)\\s*[|\\t]+\\s*\\$?([0-9,.]+)\\s*[|\\t]+\\s*\\$?([0-9,.]+)\\s*$"
+        // Patrón para formato Aramark con números en formato argentino
+        // PN001643 PLANCHA DE PASTA FROLA DE MEMBRILLO 30 X 40 18.500,00 16,00 296.000,00
+        Pattern patronAramark = Pattern.compile(
+            "^([A-Z]{2}[0-9]{6})\\s+(.+?)\\s+([0-9]{1,3}(?:\\.[0-9]{3})*,[0-9]{2})\\s+([0-9]{1,3}(?:,[0-9]{2})?)\\s+([0-9]{1,3}(?:\\.[0-9]{3})*,[0-9]{2})\\s*$"
         );
 
         for (String linea : lineas) {
@@ -61,75 +55,92 @@ public class PdfProcessingService {
 
             // Saltar líneas vacías o encabezados
             if (linea.isEmpty() ||
-                linea.toLowerCase().contains("producto") && linea.toLowerCase().contains("cantidad") ||
-                linea.toLowerCase().contains("descripción") ||
-                linea.toLowerCase().contains("item")) {
+                linea.toLowerCase().contains("sku") ||
+                linea.toLowerCase().contains("subtotal") ||
+                linea.toLowerCase().contains("total neto") ||
+                linea.toLowerCase().contains("condiciones")) {
                 continue;
             }
 
-            Matcher matcher = patronProducto.matcher(linea);
-            if (!matcher.matches()) {
-                matcher = patronProductoAlt.matcher(linea);
-            }
-
+            Matcher matcher = patronAramark.matcher(linea);
             if (matcher.matches()) {
                 try {
                     ItemPedidoDTO item = new ItemPedidoDTO();
 
-                    // Grupo 1: Nombre del producto
-                    item.setProducto(matcher.group(1).trim());
+                    // Grupo 1: SKU
+                    String sku = matcher.group(1);
 
-                    // Grupo 2: Cantidad
-                    item.setCantidad(Integer.parseInt(matcher.group(2).trim()));
+                    // Grupo 2: Descripción del producto
+                    item.setProducto(matcher.group(2).trim());
 
-                    // Grupo 3: Precio Unitario
-                    String precioStr = matcher.group(3).trim().replace(",", "");
+                    // Grupo 3: Precio Unitario (18.500,00 -> 18500.00)
+                    String precioStr = matcher.group(3)
+                        .replace(".", "")   // Quitar separadores de miles
+                        .replace(",", "."); // Convertir coma decimal a punto
                     item.setPrecioUnitario(new BigDecimal(precioStr));
 
-                    // Validar que tenga datos válidos
+                    // Grupo 4: Cantidad (16,00 -> 16)
+                    String cantidadStr = matcher.group(4).replace(",", ".");
+                    item.setCantidad((int) Double.parseDouble(cantidadStr));
+
+                    // Validar
                     if (item.getProducto() != null && !item.getProducto().isEmpty() &&
                         item.getCantidad() != null && item.getCantidad() > 0 &&
                         item.getPrecioUnitario() != null && item.getPrecioUnitario().compareTo(BigDecimal.ZERO) > 0) {
 
                         items.add(item);
-                        log.debug("Item extraído del PDF: {} x{} - ${}",
-                            item.getProducto(), item.getCantidad(), item.getPrecioUnitario());
+                        BigDecimal subtotal = item.getPrecioUnitario().multiply(new BigDecimal(item.getCantidad()));
+                        log.info("✅ {} | {} | Precio: ${} | Cant: {} | Subtotal: ${}",
+                            sku, item.getProducto(), item.getPrecioUnitario(), item.getCantidad(), subtotal);
                     }
                 } catch (Exception e) {
-                    log.warn("Error procesando línea del PDF: {} - {}", linea, e.getMessage());
+                    log.error("❌ Error procesando línea: {} | Error: {}", linea, e.getMessage());
+                }
+            } else {
+                // Log líneas que empiezan con SKU pero no se procesaron
+                if (linea.matches("^[A-Z]{2}[0-9]{6}.*")) {
+                    log.warn("⚠️ Línea no procesada: {}", linea);
                 }
             }
         }
 
-        log.info("Extraídos {} items del PDF", items.size());
+        log.info("=== ✅ EXTRACCIÓN COMPLETADA: {} items encontrados ===", items.size());
+
+        // Si no se encontró nada, mostrar debugging
+        if (items.isEmpty()) {
+            log.error("❌ NO SE ENCONTRARON ITEMS - Primeras 15 líneas del PDF:");
+            for (int i = 0; i < Math.min(15, lineas.length); i++) {
+                log.error("Línea {}: [{}]", i, lineas[i]);
+            }
+        }
+
         return items;
     }
 
     /**
      * Extrae el total del pedido del texto del PDF
+     * Formato Aramark: "Total Neto $ 1.465.500,00"
      */
     public BigDecimal extraerTotalDelPdf(String textoPdf) {
-        // Buscar patrones como:
-        // "TOTAL: $33,050.00"
-        // "Total General: 33050.00"
-        // "TOTAL    $33,050.00"
-
         Pattern[] patrones = {
-            Pattern.compile("TOTAL[:\\s]+\\$?([0-9,]+\\.?[0-9]*)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("Total General[:\\s]+\\$?([0-9,]+\\.?[0-9]*)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("Importe Total[:\\s]+\\$?([0-9,]+\\.?[0-9]*)", Pattern.CASE_INSENSITIVE)
+            Pattern.compile("Total Neto\\s+\\$?\\s*([0-9.]+,[0-9]{2})", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("Subtotal\\s+\\$?\\s*([0-9.]+,[0-9]{2})", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("TOTAL[:\\s]+\\$?\\s*([0-9.]+,[0-9]{2})", Pattern.CASE_INSENSITIVE)
         };
 
         for (Pattern patron : patrones) {
             Matcher matcher = patron.matcher(textoPdf);
             if (matcher.find()) {
                 try {
-                    String totalStr = matcher.group(1).replace(",", "");
+                    // Formato argentino: 1.465.500,00 -> 1465500.00
+                    String totalStr = matcher.group(1)
+                        .replace(".", "")   // Eliminar separadores de miles
+                        .replace(",", "."); // Convertir coma decimal a punto
                     BigDecimal total = new BigDecimal(totalStr);
-                    log.info("Total extraído del PDF: ${}", total);
+                    log.info("💰 Total Neto extraído del PDF: ${}", total);
                     return total;
                 } catch (Exception e) {
-                    log.warn("Error parseando total: {}", e.getMessage());
+                    log.warn("Error parseando total: {} - {}", matcher.group(1), e.getMessage());
                 }
             }
         }
@@ -166,4 +177,3 @@ public class PdfProcessingService {
         return null;
     }
 }
-

@@ -28,6 +28,7 @@ public class EmailProcessingService {
 
     private final GmailService gmailService;
     private final PedidoService pedidoService;
+    private final PdfProcessingService pdfProcessingService;
 
     /**
      * Procesa emails de pedidos no leídos
@@ -59,11 +60,38 @@ public class EmailProcessingService {
     private void procesarEmailPedido(Message message) throws Exception {
         String cuerpo = gmailService.extraerCuerpoEmail(message);
         String remitente = gmailService.extraerRemitente(message);
+        String asunto = gmailService.extraerAsunto(message);
 
-        log.info("Procesando pedido de: {}", remitente);
+        log.info("Procesando pedido - Asunto: {} - Remitente: {}", asunto, remitente);
 
-        // Parsear el email para extraer información
-        PedidoDTO pedidoDTO = parsearEmailPedido(cuerpo, remitente, message.getId());
+        // Parsear el cuerpo del email para extraer información de entrega
+        PedidoDTO pedidoDTO = parsearCuerpoEmail(cuerpo, remitente, message.getId());
+
+        // Verificar si tiene PDF adjunto
+        if (gmailService.tieneAdjuntoPdf(message)) {
+            log.info("Email tiene PDF adjunto, procesando...");
+
+            byte[] pdfBytes = gmailService.descargarAdjuntoPdf(message);
+            if (pdfBytes != null) {
+                String textoPdf = pdfProcessingService.extraerTextoDePdf(pdfBytes);
+
+                // Extraer items del PDF
+                List<ItemPedidoDTO> items = pdfProcessingService.extraerItemsDelPdf(textoPdf);
+                pedidoDTO.setItems(items);
+
+                // Extraer número de OC del PDF si está disponible
+                String numeroOC = pdfProcessingService.extraerNumeroOrdenCompra(textoPdf);
+                if (numeroOC != null) {
+                    log.info("Número de OC extraído: {}", numeroOC);
+                }
+            }
+        } else {
+            log.warn("Email sin PDF adjunto, intentando extraer items del cuerpo HTML");
+            // Fallback: intentar extraer de tabla HTML (comportamiento anterior)
+            Document doc = Jsoup.parse(cuerpo);
+            List<ItemPedidoDTO> items = extraerItemsDeTabla(doc);
+            pedidoDTO.setItems(items);
+        }
 
         if (pedidoDTO != null && validarPedido(pedidoDTO)) {
             // Crear el pedido
@@ -82,7 +110,185 @@ public class EmailProcessingService {
     }
 
     /**
+     * Parsea el cuerpo del email para extraer información del pedido
+     * Extrae: Cliente facturación, destinatario entrega, dirección, horario, fecha
+     */
+    private PedidoDTO parsearCuerpoEmail(String contenido, String remitente, String messageId) {
+        try {
+            PedidoDTO pedidoDTO = new PedidoDTO();
+            pedidoDTO.setEmailOrigen(extraerEmail(remitente));
+            pedidoDTO.setGmailMessageId(messageId);
+
+            // Parsear como HTML o texto plano
+            String texto = contenido;
+            if (contenido.contains("<html") || contenido.contains("<body")) {
+                Document doc = Jsoup.parse(contenido);
+                texto = doc.text();
+            }
+
+            // Extraer "Para" (destinatario final)
+            String para = extraerCampoEspecifico(texto, "Para");
+            if (para != null) {
+                pedidoDTO.setDestinatarioEntrega(para);
+                log.debug("Para (Destinatario): {}", para);
+            }
+
+            // Extraer "Se factura a"
+            String seFacturaA = extraerCampoEspecifico(texto, "Se factura a");
+            if (seFacturaA != null) {
+                pedidoDTO.setClienteFacturacion(seFacturaA);
+                log.debug("Se factura a: {}", seFacturaA);
+            }
+
+            // Extraer "Entregar en"
+            String entregarEn = extraerCampoEspecifico(texto, "Entregar en");
+            if (entregarEn != null) {
+                pedidoDTO.setLugarEntrega(entregarEn);
+                log.debug("Entregar en: {}", entregarEn);
+            }
+
+            // Extraer "Dirección de Entrega"
+            String direccion = extraerCampoEspecifico(texto, "Direcci[oó]n de Entrega");
+            if (direccion != null) {
+                pedidoDTO.setDireccionEntrega(direccion);
+                log.debug("Dirección de entrega: {}", direccion);
+            }
+
+            // Extraer horario (puede ser rango: "07:00hs - 13:00hs")
+            String horario = extraerHorarioRango(texto);
+            if (horario != null) {
+                try {
+                    pedidoDTO.setHorarioEntrega(LocalTime.parse(horario));
+                    log.debug("Horario entrega: {}", horario);
+                } catch (Exception e) {
+                    log.warn("Error parseando horario: {}", horario);
+                }
+            }
+
+            // Calcular fecha de entrega: 7 días hábiles desde hoy
+            LocalDate fechaEntrega = calcularFechaEntregaHabiles(LocalDate.now(), 7);
+            pedidoDTO.setFechaEntrega(fechaEntrega);
+            log.info("Fecha de entrega calculada (7 días hábiles): {}", fechaEntrega);
+
+            // Extraer número de OC del texto
+            String numeroOC = extraerNumeroOCDelTexto(texto);
+            if (numeroOC != null) {
+                log.info("Número de OC extraído del cuerpo: {}", numeroOC);
+                // Guardar el número de OC (puedes agregarlo como campo del DTO si lo necesitas)
+            }
+
+            return pedidoDTO;
+        } catch (Exception e) {
+            log.error("Error parseando cuerpo del email", e);
+            return null;
+        }
+    }
+
+    /**
+     * Extrae un campo del texto usando múltiples patrones
+     */
+    private String extraerCampo(String texto, String... patronesStr) {
+        for (String patronStr : patronesStr) {
+            Pattern pattern = Pattern.compile(patronStr + "[:\\s]+([^\\n.;]+)", Pattern.CASE_INSENSITIVE);
+            Matcher matcher = pattern.matcher(texto);
+            if (matcher.find()) {
+                return matcher.group(1).trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extrae un campo específico con formato "Campo\n\nValor"
+     * Usado para el formato de Aramark donde viene "Para\n\nDEPOSITO ARAMARK"
+     */
+    private String extraerCampoEspecifico(String texto, String nombreCampo) {
+        // Patrón: "Para\n\nDEPOSITO ARAMARK" o "Para\nDEPOSITO ARAMARK"
+        Pattern pattern = Pattern.compile(
+            nombreCampo + "\\s*\\n+\\s*([^\\n]+)",
+            Pattern.CASE_INSENSITIVE
+        );
+        Matcher matcher = pattern.matcher(texto);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return null;
+    }
+
+    /**
+     * Extrae número de OC del texto del email
+     * Ejemplo: "Se envío OC 113648" -> "113648"
+     */
+    private String extraerNumeroOCDelTexto(String texto) {
+        Pattern[] patrones = {
+            Pattern.compile("OC[\\s#:Nº]*([0-9]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("Orden de Compra[\\s#:Nº]*([0-9]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("O\\.C\\.[\\s#:Nº]*([0-9]+)", Pattern.CASE_INSENSITIVE)
+        };
+
+        for (Pattern patron : patrones) {
+            Matcher matcher = patron.matcher(texto);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extrae el horario de entrega del texto, soportando rangos
+     * Ejemplo: "07:00hs - 13:00hs" -> retorna "07:00" (hora de inicio)
+     */
+    private String extraerHorarioRango(String texto) {
+        // Buscar patrones como:
+        // "07:00hs - 13:00hs"
+        // "Horario de entrega (con turno)\n\n07:00hs - 13:00hs"
+
+        Pattern[] patrones = {
+            // Rango con "hs"
+            Pattern.compile("(\\d{1,2}:\\d{2})\\s*hs\\s*-\\s*\\d{1,2}:\\d{2}\\s*hs", Pattern.CASE_INSENSITIVE),
+            // Rango sin "hs"
+            Pattern.compile("(\\d{1,2}:\\d{2})\\s*-\\s*\\d{1,2}:\\d{2}", Pattern.CASE_INSENSITIVE),
+            // Horario simple
+            Pattern.compile("horario[:\\s]+(\\d{1,2}:\\d{2})", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("(\\d{1,2}:\\d{2})\\s*hs", Pattern.CASE_INSENSITIVE)
+        };
+
+        for (Pattern pattern : patrones) {
+            Matcher matcher = pattern.matcher(texto);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Calcula la fecha de entrega sumando días hábiles (lunes a viernes)
+     * @param fechaInicio Fecha desde la cual calcular
+     * @param diasHabiles Cantidad de días hábiles a sumar
+     * @return Fecha de entrega
+     */
+    private LocalDate calcularFechaEntregaHabiles(LocalDate fechaInicio, int diasHabiles) {
+        LocalDate fecha = fechaInicio;
+        int diasSumados = 0;
+
+        while (diasSumados < diasHabiles) {
+            fecha = fecha.plusDays(1);
+
+            // Verificar si es día hábil (lunes=1 a viernes=5)
+            if (fecha.getDayOfWeek().getValue() <= 5) {
+                diasSumados++;
+            }
+        }
+
+        return fecha;
+    }
+
+    /**
      * Parsea el contenido del email para extraer información del pedido
+     * MÉTODO ANTIGUO - Mantenido para compatibilidad
      */
     private PedidoDTO parsearEmailPedido(String htmlContent, String remitente, String messageId) {
         try {
@@ -175,7 +381,13 @@ public class EmailProcessingService {
      * Extrae la fecha de entrega del contenido del email
      */
     private LocalDate extraerFechaEntrega(Document doc) {
-        String texto = doc.text();
+        return extraerFechaEntrega(doc.text());
+    }
+
+    /**
+     * Extrae la fecha de entrega del texto
+     */
+    private LocalDate extraerFechaEntrega(String texto) {
 
         // Patrones comunes de fecha
         Pattern[] patterns = {

@@ -180,5 +180,54 @@ public class GmailService {
                 .findFirst()
                 .orElse("");
     }
+
+    /**
+     * Descarga un adjunto PDF del email
+     */
+    public byte[] descargarAdjuntoPdf(Message message) throws Exception {
+        Gmail service = getGmailService();
+
+        // Buscar adjuntos en el email
+        List<MessagePart> parts = message.getPayload().getParts();
+        if (parts != null) {
+            for (MessagePart part : parts) {
+                String filename = part.getFilename();
+
+                // Verificar si es un PDF
+                if (filename != null && filename.toLowerCase().endsWith(".pdf")) {
+                    String attachmentId = part.getBody().getAttachmentId();
+
+                    if (attachmentId != null) {
+                        MessagePartBody attachPart = service.users().messages().attachments()
+                                .get("me", message.getId(), attachmentId)
+                                .execute();
+
+                        byte[] fileData = Base64.getUrlDecoder().decode(attachPart.getData());
+                        log.info("Adjunto PDF descargado: {} ({} bytes)", filename, fileData.length);
+                        return fileData;
+                    }
+                }
+            }
+        }
+
+        log.warn("No se encontró adjunto PDF en el email");
+        return null;
+    }
+
+    /**
+     * Verifica si el email tiene adjuntos PDF
+     */
+    public boolean tieneAdjuntoPdf(Message message) {
+        List<MessagePart> parts = message.getPayload().getParts();
+        if (parts != null) {
+            for (MessagePart part : parts) {
+                String filename = part.getFilename();
+                if (filename != null && filename.toLowerCase().endsWith(".pdf")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }
 

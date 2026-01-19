@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,6 +30,18 @@ public class Pedido {
 
     @Column(name = "fecha_entrega")
     private LocalDate fechaEntrega;
+
+    @Column(name = "horario_entrega")
+    private LocalTime horarioEntrega;
+
+    @Column(name = "cliente_facturacion")
+    private String clienteFacturacion;
+
+    @Column(name = "destinatario_entrega")
+    private String destinatarioEntrega;
+
+    @Column(name = "direccion_entrega", length = 500)
+    private String direccionEntrega;
 
     @Column(name = "lugar_entrega")
     private String lugarEntrega;
@@ -105,8 +118,8 @@ public class Pedido {
 
     public void calcularTotal() {
         this.total = items.stream()
-                .map(ItemPedido::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .map(item -> item.getSubtotal())
+                .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
     }
 
     public void calcularComision() {

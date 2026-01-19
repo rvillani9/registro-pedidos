@@ -61,17 +61,32 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
+        String horario = pedido.getHorarioEntrega() != null ?
+            pedido.getHorarioEntrega().toString() : "A confirmar";
+
         String detalles = String.format(
-                "Pedido: %s\nTotal: $%.2f\nLugar: %s\n\nRecordar:\n- Solicitar turno a BlancaLuna\n- Preparar Remito\n- Preparar Etiqueta RNPA",
+                "Pedido: %s\n" +
+                "Cliente Facturación: %s\n" +
+                "Destinatario Entrega: %s\n" +
+                "Dirección: %s\n" +
+                "Horario: %s\n" +
+                "Total: $%.2f\n\n" +
+                "Recordar:\n" +
+                "- Solicitar turno a BlancaLuna\n" +
+                "- Preparar Remito\n" +
+                "- Preparar Etiqueta RNPA",
                 pedido.getNumeroPedido(),
-                pedido.getTotal(),
-                pedido.getLugarEntrega()
+                pedido.getClienteFacturacion() != null ? pedido.getClienteFacturacion() : "N/A",
+                pedido.getDestinatarioEntrega() != null ? pedido.getDestinatarioEntrega() : "N/A",
+                pedido.getDireccionEntrega() != null ? pedido.getDireccionEntrega() : pedido.getLugarEntrega(),
+                horario,
+                pedido.getTotal()
         );
 
         String eventId = calendarService.crearEventoEntrega(
                 pedido.getNumeroPedido(),
                 pedido.getFechaEntrega(),
-                pedido.getLugarEntrega(),
+                pedido.getDireccionEntrega() != null ? pedido.getDireccionEntrega() : pedido.getLugarEntrega(),
                 detalles
         );
 

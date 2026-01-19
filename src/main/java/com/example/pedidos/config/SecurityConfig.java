@@ -24,8 +24,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
-                        .loginPage("/login")
+                        // .loginPage("/login")  <--- COMENTA O BORRA ESTA LÍNEA POR AHORA
                         .permitAll()
+                        .defaultSuccessUrl("/", true) // Agrega esto para ir al inicio al entrar
                 )
                 .logout(logout -> logout
                         .permitAll()

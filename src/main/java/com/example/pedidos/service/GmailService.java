@@ -107,31 +107,37 @@ public class GmailService {
     /**
      * Envía un email
      */
+    /**
+     * Envía un email (Actualizado para Spring Boot 3 / Jakarta EE)
+     */
     public void enviarEmail(String destinatario, String asunto, String cuerpo) throws Exception {
         Gmail service = getGmailService();
 
+        // 1. Crear la sesión (Usando Jakarta)
         Properties props = new Properties();
-        javax.mail.Session session = javax.mail.Session.getDefaultInstance(props, null);
+        jakarta.mail.Session session = jakarta.mail.Session.getDefaultInstance(props, null);
 
-        javax.mail.internet.MimeMessage email = new javax.mail.internet.MimeMessage(session);
-        email.setFrom(new javax.mail.internet.InternetAddress("me"));
-        email.addRecipient(javax.mail.Message.RecipientType.TO,
-                new javax.mail.internet.InternetAddress(destinatario));
+        // 2. Crear el email MIME (Usando Jakarta)
+        jakarta.mail.internet.MimeMessage email = new jakarta.mail.internet.MimeMessage(session);
+        email.setFrom(new jakarta.mail.internet.InternetAddress("me"));
+        email.addRecipient(jakarta.mail.Message.RecipientType.TO,
+                new jakarta.mail.internet.InternetAddress(destinatario));
         email.setSubject(asunto);
         email.setText(cuerpo);
 
+        // 3. Convertir a formato crudo para la API de Google
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         email.writeTo(buffer);
         byte[] bytes = buffer.toByteArray();
         String encodedEmail = Base64.getUrlEncoder().encodeToString(bytes);
 
+        // 4. Crear el objeto Message de Google API y enviar
         Message message = new Message();
         message.setRaw(encodedEmail);
 
         service.users().messages().send("me", message).execute();
         log.info("Email enviado a: {}", destinatario);
     }
-
     /**
      * Extrae el cuerpo del email
      */

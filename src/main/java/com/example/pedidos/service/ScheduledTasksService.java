@@ -23,12 +23,28 @@ public class ScheduledTasksService {
     private final EmailNotificationService emailNotificationService;
 
     /**
-     * Procesa emails de pedidos cada 10 minutos
+     * Procesa emails de pedidos cada 2 minutos
      */
-    @Scheduled(fixedDelay = 600000) // 10 minutos
+    @Scheduled(fixedDelay = 120000, initialDelay = 10000) // 2 minutos, inicio después de 10 segundos
     public void procesarEmailsPedidos() {
+        log.info("======================================");
         log.info("Iniciando procesamiento de emails de pedidos...");
-        emailProcessingService.procesarEmailsPedidos();
+        log.info("Hora: {}", LocalDateTime.now());
+        try {
+            emailProcessingService.procesarEmailsPedidos();
+            log.info("Procesamiento de emails completado exitosamente");
+        } catch (Exception e) {
+            log.error("ERROR en procesamiento de emails: {}", e.getMessage(), e);
+        }
+        log.info("======================================");
+    }
+
+    /**
+     * Método público para forzar el procesamiento manual de emails
+     */
+    public void forzarProcesamientoEmails() {
+        log.info(">>> PROCESAMIENTO MANUAL FORZADO <<<");
+        procesarEmailsPedidos();
     }
 
     /**

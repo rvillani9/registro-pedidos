@@ -75,22 +75,28 @@ public class GmailService {
      * Lee emails no leídos con asunto específico
      */
     public List<Message> leerEmailsPedidos(String query) throws Exception {
+        log.info("Conectando con Gmail API...");
         Gmail service = getGmailService();
         List<Message> messages = new ArrayList<>();
 
+        log.info("Ejecutando búsqueda: {}", query);
         ListMessagesResponse response = service.users().messages()
                 .list("me")
                 .setQ(query)
                 .execute();
 
         if (response.getMessages() != null) {
+            log.info("Se encontraron {} mensajes que coinciden con la búsqueda", response.getMessages().size());
             for (Message message : response.getMessages()) {
+                log.debug("Descargando mensaje completo: {}", message.getId());
                 Message fullMessage = service.users().messages()
                         .get("me", message.getId())
                         .setFormat("full")
                         .execute();
                 messages.add(fullMessage);
             }
+        } else {
+            log.info("No se encontraron mensajes que coincidan con la búsqueda");
         }
 
         return messages;

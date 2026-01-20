@@ -231,8 +231,35 @@
         }
 
         function procesarEmails() {
-            alert('Procesando nuevos emails... Esta función se ejecuta automáticamente cada 10 minutos.');
-            cargarPedidos();
+            if (!confirm('¿Desea procesar los emails de pedidos ahora?')) {
+                return;
+            }
+
+            const btn = event.target.closest('button');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+
+            $.ajax({
+                url: '/api/pedidos/procesar-emails',
+                method: 'POST',
+                success: function(response) {
+                    alert('✓ ' + response.message + '\n\nLos pedidos se actualizarán en breve.');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                    // Recargar la tabla después de 3 segundos
+                    setTimeout(cargarPedidos, 3000);
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error al procesar emails';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg = xhr.responseJSON.message;
+                    }
+                    alert('✗ ' + errorMsg);
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            });
         }
 
         function verDetalle(id) {

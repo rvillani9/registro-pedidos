@@ -4,6 +4,7 @@ import com.example.pedidos.dto.PedidoDTO;
 import com.example.pedidos.model.EstadoPedido;
 import com.example.pedidos.model.Pedido;
 import com.example.pedidos.service.PedidoService;
+import com.example.pedidos.service.ScheduledTasksService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class PedidoController {
 
     private final PedidoService pedidoService;
+    private final ScheduledTasksService scheduledTasksService;
 
     @GetMapping
     public ResponseEntity<List<Pedido>> obtenerTodos() {
@@ -143,6 +145,25 @@ public class PedidoController {
     public ResponseEntity<Void> finalizarPedido(@PathVariable Long id) {
         pedidoService.finalizarPedido(id);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Endpoint para forzar el procesamiento manual de emails de pedidos
+     */
+    @PostMapping("/procesar-emails")
+    public ResponseEntity<Map<String, String>> procesarEmails() {
+        try {
+            scheduledTasksService.forzarProcesamientoEmails();
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Procesamiento de emails iniciado correctamente"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", "Error al procesar emails: " + e.getMessage()
+            ));
+        }
     }
 }
 

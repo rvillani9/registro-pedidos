@@ -34,23 +34,53 @@ public class EmailProcessingService {
      * Procesa emails de pedidos no leídos
      */
     public void procesarEmailsPedidos() {
+        log.info("╔══════════════════════════════════════════════════════════╗");
+        log.info("║  INICIANDO PROCESAMIENTO DE EMAILS DE PEDIDOS            ║");
+        log.info("╚══════════════════════════════════════════════════════════╝");
+
         try {
             // Buscar emails no leídos con asunto que contenga "pedido"
             String query = "is:unread subject:pedido";
+            log.info("Búsqueda en Gmail: query = '{}'", query);
+
             List<Message> messages = gmailService.leerEmailsPedidos(query);
 
-            log.info("Encontrados {} emails de pedidos sin procesar", messages.size());
+            log.info(">>> Encontrados {} emails de pedidos sin procesar <<<", messages.size());
+
+            if (messages.isEmpty()) {
+                log.info("No hay emails nuevos para procesar");
+                log.info("Verifica que:");
+                log.info("  1. Haya emails sin leer en tu bandeja");
+                log.info("  2. El asunto contenga la palabra 'pedido'");
+                log.info("  3. Las credenciales de Gmail estén configuradas");
+            }
 
             for (Message message : messages) {
                 try {
+                    log.info("──────────────────────────────────────────────────────────");
+                    log.info("Procesando email: {}", message.getId());
                     procesarEmailPedido(message);
                     gmailService.marcarComoLeido(message.getId());
+                    log.info("✓ Email procesado y marcado como leído: {}", message.getId());
                 } catch (Exception e) {
-                    log.error("Error procesando email {}: {}", message.getId(), e.getMessage(), e);
+                    log.error("✗ Error procesando email {}: {}", message.getId(), e.getMessage(), e);
                 }
             }
+
+            log.info("╔══════════════════════════════════════════════════════════╗");
+            log.info("║  PROCESAMIENTO COMPLETADO                                 ║");
+            log.info("║  Emails procesados: {}                                    ", String.format("%-35s", messages.size()) + "║");
+            log.info("╚══════════════════════════════════════════════════════════╝");
+
         } catch (Exception e) {
+            log.error("╔══════════════════════════════════════════════════════════╗");
+            log.error("║  ERROR CRÍTICO AL PROCESAR EMAILS                        ║");
+            log.error("╚══════════════════════════════════════════════════════════╝");
             log.error("Error al procesar emails de pedidos", e);
+            log.error("Detalles del error: {}", e.getMessage());
+            if (e.getCause() != null) {
+                log.error("Causa raíz: {}", e.getCause().getMessage());
+            }
         }
     }
 
@@ -62,50 +92,61 @@ public class EmailProcessingService {
         String remitente = gmailService.extraerRemitente(message);
         String asunto = gmailService.extraerAsunto(message);
 
-        log.info("Procesando pedido - Asunto: {} - Remitente: {}", asunto, remitente);
+        log.info("   Asunto: {}", asunto);
+        log.info("   Remitente: {}", remitente);
+        log.info("   Tamaño del mensaje: {} caracteres", cuerpo.length());
 
         // Parsear el cuerpo del email para extraer información de entrega
         PedidoDTO pedidoDTO = parsearCuerpoEmail(cuerpo, remitente, message.getId());
 
         // Verificar si tiene PDF adjunto
         if (gmailService.tieneAdjuntoPdf(message)) {
-            log.info("Email tiene PDF adjunto, procesando...");
+            log.info("   ✓ Email con PDF adjunto detectado");
 
             byte[] pdfBytes = gmailService.descargarAdjuntoPdf(message);
             if (pdfBytes != null) {
+                log.info("   ✓ PDF descargado: {} bytes", pdfBytes.length);
                 String textoPdf = pdfProcessingService.extraerTextoDePdf(pdfBytes);
 
                 // Extraer items del PDF
                 List<ItemPedidoDTO> items = pdfProcessingService.extraerItemsDelPdf(textoPdf);
                 pedidoDTO.setItems(items);
+                log.info("   ✓ Items extraídos del PDF: {}", items.size());
 
                 // Extraer número de OC del PDF si está disponible
                 String numeroOC = pdfProcessingService.extraerNumeroOrdenCompra(textoPdf);
                 if (numeroOC != null) {
-                    log.info("Número de OC extraído: {}", numeroOC);
+                    log.info("   ✓ Número de OC extraído: {}", numeroOC);
                 }
+            } else {
+                log.warn("   ⚠ No se pudo descargar el PDF adjunto");
             }
         } else {
-            log.warn("Email sin PDF adjunto, intentando extraer items del cuerpo HTML");
+            log.warn("   ⚠ Email sin PDF adjunto, intentando extraer items del cuerpo HTML");
             // Fallback: intentar extraer de tabla HTML (comportamiento anterior)
             Document doc = Jsoup.parse(cuerpo);
             List<ItemPedidoDTO> items = extraerItemsDeTabla(doc);
             pedidoDTO.setItems(items);
+            log.info("   Items extraídos del HTML: {}", items.size());
         }
 
         if (pedidoDTO != null && validarPedido(pedidoDTO)) {
             // Crear el pedido
+            log.info("   Creando pedido en la base de datos...");
             Pedido pedido = pedidoService.crearPedido(pedidoDTO);
 
             // Agregarlo al calendario
+            log.info("   Agregando al calendario...");
             pedidoService.agregarACalendario(pedido.getId());
 
             // Enviarlo a la planta
+            log.info("   Enviando notificación a la planta...");
             pedidoService.enviarAPlanta(pedido.getId());
 
-            log.info("Pedido procesado exitosamente: {}", pedido.getNumeroPedido());
+            log.info("   ✓✓✓ Pedido procesado exitosamente: {} ✓✓✓", pedido.getNumeroPedido());
         } else {
-            log.warn("Pedido inválido o información incompleta en email: {}", message.getId());
+            log.warn("   ✗ Pedido inválido o información incompleta - Email ID: {}", message.getId());
+            log.warn("   Revisa el formato del email o la información del pedido");
         }
     }
 
